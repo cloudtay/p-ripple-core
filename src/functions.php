@@ -37,6 +37,7 @@ namespace P;
 use Closure;
 use Psc\Core\Coroutine\Promise;
 use Psc\Kernel;
+use Psc\Library\System\Parallel\Thread;
 use Revolt\EventLoop\UnsupportedFeatureException;
 use Throwable;
 
@@ -108,22 +109,6 @@ function cancel(string $id): void
 }
 
 /**
- * @return void
- */
-function cancelAll(): void
-{
-    Kernel::getInstance()->cancelAll();
-}
-
-/**
- * @return array
- */
-function getIdentities(): array
-{
-    return Kernel::getInstance()->getIdentities();
-}
-
-/**
  * @param Closure(Closure):void $closure
  * @param int|float             $second
  * @return string
@@ -131,6 +116,16 @@ function getIdentities(): array
 function repeat(Closure $closure, int|float $second): string
 {
     return Kernel::getInstance()->repeat($closure, $second);
+}
+
+/**
+ * @deprecated 未通过测试
+ * @param Closure $closure
+ * @return Thread
+ */
+function thread(Closure $closure): Thread
+{
+    return System::Parallel()->thread($closure);
 }
 
 /**
@@ -176,6 +171,22 @@ function run(): void
 function tick(): void
 {
     Kernel::getInstance()->tick();
+}
+
+/**
+ * @return void
+ */
+function cancelAll(): void
+{
+    Kernel::getInstance()->cancelAll();
+}
+
+/**
+ * @return array
+ */
+function getIdentities(): array
+{
+    return Kernel::getInstance()->getIdentities();
 }
 
 /**

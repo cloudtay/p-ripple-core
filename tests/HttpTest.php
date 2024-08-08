@@ -43,7 +43,6 @@ use Psc\Library\Net\Http\Server\Response;
 use Throwable;
 
 use function md5;
-use function P\async;
 use function P\cancelAll;
 use function P\defer;
 use function P\tick;

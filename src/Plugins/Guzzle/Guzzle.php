@@ -41,6 +41,8 @@ use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response;
 use Psc\Core\LibraryAbstract;
 
+use const PHP_SAPI;
+
 /**
  *
  */
@@ -57,7 +59,7 @@ class Guzzle extends LibraryAbstract
 
     public function __construct()
     {
-        $this->pHandler = new PHandler(['pool' => 1]);
+        $this->pHandler = new PHandler(['pool' => PHP_SAPI === 'cli']);
         $this->client   = new Client(['handler' => $this->pHandler]);
     }
 

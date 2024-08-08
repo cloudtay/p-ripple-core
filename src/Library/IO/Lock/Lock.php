@@ -43,6 +43,7 @@ use function P\cancelForkHandler;
 use function P\registerForkHandler;
 use function sys_get_temp_dir;
 use function touch;
+use function is_resource;
 
 use const LOCK_EX;
 use const LOCK_NB;
@@ -126,7 +127,10 @@ class Lock
 
         $this->closed = true;
 
-        fclose($this->resource);
+        if(is_resource($this->resource)) {
+            fclose($this->resource);
+        }
+
         cancelForkHandler($this->forkHandlerEventId);
     }
 

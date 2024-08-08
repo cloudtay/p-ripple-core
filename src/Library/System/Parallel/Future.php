@@ -41,6 +41,12 @@ use Throwable;
 
 class Future
 {
+    /*** @var Closure */
+    private Closure $onError;
+
+    /*** @var Closure */
+    private Closure $onValue;
+
     /*** @param \parallel\Future $future */
     public function __construct(public readonly \parallel\Future $future)
     {
@@ -79,27 +85,13 @@ class Future
         $this->future->cancelled();
     }
 
-    private Closure $onCancelled;
-    private Closure $onKilled;
-    private Closure $onError;
-
     /**
-     * @param Closure $onCancelled
+     * @param Closure $onValue
      * @return Future
      */
-    public function onCancelled(Closure $onCancelled): Future
+    public function onValue(Closure $onValue): Future
     {
-        $this->onCancelled = $onCancelled;
-        return $this;
-    }
-
-    /**
-     * @param Closure $onKilled
-     * @return Future
-     */
-    public function onKilled(Closure $onKilled): Future
-    {
-        $this->onKilled = $onKilled;
+        $this->onValue = $onValue;
         return $this;
     }
 
@@ -113,30 +105,6 @@ class Future
         return $this;
     }
 
-    /*** @var Closure */
-    private Closure $onValue;
-
-    /**
-     * @param Closure $onValue
-     * @return Future
-     */
-    public function onValue(Closure $onValue): Future
-    {
-        $this->onValue = $onValue;
-        return $this;
-    }
-
-    /**
-     * @param mixed $mixed
-     * @return void
-     */
-    public function resolve(mixed $mixed): void
-    {
-        if (isset($this->onValue)) {
-            ($this->onValue)($mixed);
-        }
-    }
-
     /**
      * @param Event $event
      * @return void
@@ -144,6 +112,12 @@ class Future
     public function onEvent(Events\Event $event): void
     {
         switch ($event->type) {
+            case Events\Event\Type::Error:
+                if (isset($this->onError)) {
+                    ($this->onError)($event->value);
+                }
+                break;
+
             case Events\Event\Type::Cancel:
                 if (isset($this->onCancelled)) {
                     ($this->onCancelled)($event->value);
@@ -154,12 +128,63 @@ class Future
                     ($this->onKilled)($event->value);
                 }
                 break;
-            case Events\Event\Type::Error:
-                if (isset($this->onError)) {
-                    ($this->onError)($event->value);
-                }
-                break;
         }
     }
 
+    /**
+     * @return void
+     * @throws Throwable
+     */
+    public function resolve(): void
+    {
+        $result = $this->value();
+        if (isset($this->onValue)) {
+            ($this->onValue)($result);
+        }
+    }
+
+    /**
+     * @param Throwable $reason
+     * @return void
+     */
+    public function reject(Throwable $reason): void
+    {
+        if (isset($this->onError)) {
+            ($this->onError)($reason);
+        }
+    }
+
+    /**
+     * @deprecated 用户的主动行为是否应该回调？
+     * @var Closure
+     */
+    private Closure $onCancelled;
+
+    /**
+     * @deprecated 用户的主动行为是否应该回调？
+     * @var Closure
+     */
+    private Closure $onKilled;
+
+    /**
+     * @deprecated 用户的主动行为是否应该回调？
+     * @param Closure $onKilled
+     * @return Future
+     */
+    public function onKilled(Closure $onKilled): Future
+    {
+        $this->onKilled = $onKilled;
+        return $this;
+    }
+
+    /**
+     * @deprecated 用户的主动行为是否应该回调？
+     * @param Closure $onCancelled
+     * @return Future
+     */
+    public function onCancelled(Closure $onCancelled): Future
+    {
+        $this->onCancelled = $onCancelled;
+        return $this;
+    }
 }

@@ -32,39 +32,21 @@
  * 由于软件或软件的使用或其他交易而引起的任何索赔、损害或其他责任承担责任。
  */
 
-namespace P;
+use function P\thread;
+use function P\tick;
 
-use Psc\Library\System\Parallel\Parallel;
-use Psc\Library\System\Proc\Proc;
-use Psc\Library\System\Process\Process;
+include __DIR__ . '/../vendor/autoload.php';
 
-/**
- *
- */
-class System
-{
-    /**
-     * @return Process
-     */
-    public static function Process(): Process
-    {
-        return Process::getInstance();
-    }
-
-    /**
-     * @return Proc
-     */
-    public static function Proc(): Proc
-    {
-        return Proc::getInstance();
-    }
-
-    /**
-     * @Description 未通过测试
-     * @return Parallel
-     */
-    public static function Parallel(): Parallel
-    {
-        return Parallel::getInstance();
+for ($i = 0; $i < 100; $i++) {
+    $thread = thread(static function ($context) {
+        echo \microtime(true),'>thread: ', $context->argv[0], \PHP_EOL;
+        return true;
+    });
+    try {
+        $thread->run($i);
+    } catch (Exception $e) {
+        break;
     }
 }
+
+tick();

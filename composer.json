@@ -31,13 +31,12 @@
     "revolt/event-loop": "^1.0",
     "symfony/http-foundation": "*",
     "guzzlehttp/guzzle": "*",
-    "psr/http-message": "*"
+    "psr/http-message": "*",
+    "ext-parallel": "*"
   },
   "require-dev": {
     "ext-curl": "*",
     "phpunit/phpunit": "^11.2",
-    "friendsofphp/php-cs-fixer": "*",
-    "ext-parallel": "*"
-
+    "friendsofphp/php-cs-fixer": "*"
   }
 }

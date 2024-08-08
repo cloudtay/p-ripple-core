@@ -36,6 +36,6 @@ namespace Psc\Library\System\Parallel;
 
 class Context
 {
-    public array $argv;
-    public int   $index;
+    public array  $argv;
+    public string $name;
 }

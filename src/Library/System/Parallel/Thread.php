@@ -35,17 +35,9 @@
 namespace Psc\Library\System\Parallel;
 
 use Closure;
-use Composer\Autoload\ClassLoader;
+use Exception;
+use P\System;
 use parallel\Runtime;
-use ReflectionClass;
-use Throwable;
-
-use function dirname;
-use function posix_getpid;
-use function posix_kill;
-use function strval;
-
-use const SIGUSR2;
 
 class Thread
 {
@@ -60,29 +52,24 @@ class Thread
 
     /**
      * @param Closure  $handler
-     * @param Parallel $parallel
-     * @param int      $index
+     * @param string   $name
      */
     public function __construct(
         private readonly Closure $handler,
-        private readonly Parallel $parallel,
-        private readonly int  $index,
+        private readonly string  $name,
     ) {
-        $reflector = new ReflectionClass(ClassLoader::class);
-        $vendorDir = dirname($reflector->getFileName(), 2);
-        $this->runtime = new Runtime("{$vendorDir}/autoload.php");
+        $this->runtime = new Runtime(Parallel::$autoload);
         $this->guide = static function (Closure $handler, Context $context, \parallel\Channel $channel) {
-            try {
-                $result = $handler($context);
-                $channel->send(strval($context->index));
+            $result = $handler($context);
 
-                posix_kill(posix_getpid(), SIGUSR2);
-                return $result;
-            } catch (Throwable $exception) {
+            //@reason: 非kill/cancel/close/error无法触发events的loop,因此需要通过channel通知主线程
+            $channel->send($context->name);
 
-                posix_kill(posix_getpid(), SIGUSR2);
-                throw $exception;
-            }
+            /**
+             * 弃用:非kill/cancel/close/error无法触发events的loop,因此需要通过channel通知主线程, 它可能发生在EventLoop初始化前
+             */
+            return $result;
+
         };
         $this->context = new Context();
     }
@@ -90,17 +77,18 @@ class Thread
     /**
      * @param array<mixed> ...$argv
      * @return Future
+     * @throws Exception
      */
     public function run(mixed ...$argv): Future
     {
         $this->context->argv    = $argv;
-        $this->context->index = $this->index;
+        $this->context->name = $this->name;
         $future              = new Future($this->runtime->run($this->guide, [
             $this->handler,
             $this->context,
-            $this->parallel->futureChannel->channel
+            \parallel\Channel::open('future'),
         ]));
-        $this->parallel->listenFuture(strval($this->index), $future);
+        System::Parallel()->listenFuture($future, $this->name);
         return $future;
     }
 
@@ -109,7 +97,6 @@ class Thread
      */
     public function close(): void
     {
-        posix_kill(posix_getpid(), SIGUSR2);
         $this->runtime->close();
     }
 
@@ -118,7 +105,6 @@ class Thread
      */
     public function kill(): void
     {
-        posix_kill(posix_getpid(), SIGUSR2);
         $this->runtime->kill();
     }
 }

@@ -51,6 +51,8 @@ use function P\await;
 use function strlen;
 use function strtolower;
 
+use function str_contains;
+
 use const SO_KEEPALIVE;
 use const SO_RCVBUF;
 use const SO_REUSEADDR;
@@ -177,7 +179,13 @@ class HttpServer
                     return;
                 }
 
-                $keepAlive = $symfonyRequest->headers->has('Connection') && strtolower($symfonyRequest->headers->get('Connection')) === 'keep-alive';
+                $keepAlive = false;
+                if($connection = $symfonyRequest->headers->get('Connection')) {
+                    if (str_contains(strtolower($connection), 'keep-alive')) {
+                        $keepAlive = true;
+                    }
+                }
+
                 $symfonyResponse = new Response($stream, function () use ($keepAlive, $stream) {
                     if (!$keepAlive) {
                         $stream->close();
