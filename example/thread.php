@@ -37,16 +37,48 @@ use function P\tick;
 
 include __DIR__ . '/../vendor/autoload.php';
 
+
 for ($i = 0; $i < 100; $i++) {
     $thread = thread(static function ($context) {
-        echo \microtime(true),'>thread: ', $context->argv[0], \PHP_EOL;
-        return true;
+        \sleep(1); // Simulate a slow request
+        return \file_get_contents($context->argv[0]);
     });
-    try {
-        $thread->run($i);
-    } catch (Exception $e) {
-        break;
-    }
+
+    $future = $thread->run('https://www.baidu.com/');
+    $future->onValue(static function ($value) use ($i) {
+        echo \microtime(true),">Thread $i:",\strlen($value),"\n";
+    });
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 tick();

@@ -35,7 +35,6 @@
 namespace Psc\Library\System\Parallel;
 
 use Closure;
-use Exception;
 use P\System;
 use parallel\Runtime;
 
@@ -59,17 +58,13 @@ class Thread
         private readonly string  $name,
     ) {
         $this->runtime = new Runtime(Parallel::$autoload);
-        $this->guide = static function (Closure $handler, Context $context, \parallel\Channel $channel) {
-            $result = $handler($context);
-
-            //@reason: 非kill/cancel/close/error无法触发events的loop,因此需要通过channel通知主线程
-            $channel->send($context->name);
-
-            /**
-             * 弃用:非kill/cancel/close/error无法触发events的loop,因此需要通过channel通知主线程, 它可能发生在EventLoop初始化前
-             */
-            return $result;
-
+        $this->guide = static function (Closure $handler, Context $context) {
+            $counterChannel = \parallel\Channel::open('counter');
+            try {
+                return $handler($context);
+            } finally {
+                $counterChannel->send(1);
+            }
         };
         $this->context = new Context();
     }
@@ -77,7 +72,6 @@ class Thread
     /**
      * @param array<mixed> ...$argv
      * @return Future
-     * @throws Exception
      */
     public function run(mixed ...$argv): Future
     {
@@ -86,7 +80,6 @@ class Thread
         $future              = new Future($this->runtime->run($this->guide, [
             $this->handler,
             $this->context,
-            \parallel\Channel::open('future'),
         ]));
         System::Parallel()->listenFuture($future, $this->name);
         return $future;

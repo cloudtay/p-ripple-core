@@ -32,28 +32,21 @@
  * 由于软件或软件的使用或其他交易而引起的任何索赔、损害或其他责任承担责任。
  */
 
-use Psc\Library\System\Parallel\Parallel;
+use parallel\Runtime;
 
 include_once __DIR__ . '/../vendor/autoload.php';
 
 
-$parallel = Parallel::getInstance();
+$channel = parallel\Channel::make('channel');
+$thread = new Runtime();
 
-$thread = $parallel->thread(function () {
+$thread->run(static function ($channel) {
     \sleep(1);
-    return 'mixins';
-});
-
-$future = $thread->run()->onValue(function () {
-    \var_dump('result');
-})->onKilled(function () {
-    \var_dump('ked');
-});
+    $channel->send(true);
+}, [$channel]);
 
 
-\P\delay(function () use ($thread, $future) {
-    \var_dump('k');
-    $thread->kill();
-}, 3);
-
-\P\tick();
+while(1) {
+    \var_dump($channel->recv());
+    \sleep(1);
+}

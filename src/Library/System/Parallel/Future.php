@@ -37,15 +37,16 @@ namespace Psc\Library\System\Parallel;
 use Closure;
 use parallel\Events;
 use parallel\Events\Event;
+use Psc\Core\Coroutine\Promise;
 use Throwable;
+
+use function var_dump;
 
 class Future
 {
     /*** @var Closure */
     private Closure $onError;
-
-    /*** @var Closure */
-    private Closure $onValue;
+    private mixed   $result;
 
     /*** @param \parallel\Future $future */
     public function __construct(public readonly \parallel\Future $future)
@@ -58,7 +59,10 @@ class Future
      */
     public function value(): mixed
     {
-        return $this->future->value();
+        if (isset($this->result)) {
+            return $this->result;
+        }
+        return $this->result = $this->future->value();
     }
 
     /**
@@ -83,16 +87,6 @@ class Future
     public function cancelled(): void
     {
         $this->future->cancelled();
-    }
-
-    /**
-     * @param Closure $onValue
-     * @return Future
-     */
-    public function onValue(Closure $onValue): Future
-    {
-        $this->onValue = $onValue;
-        return $this;
     }
 
     /**
@@ -132,25 +126,28 @@ class Future
     }
 
     /**
+     * @var Closure
+     */
+    private Closure $onValue;
+
+    /**
+     * @param Closure $onValue
+     * @return $this
+     */
+    public function onValue(Closure $onValue): Future
+    {
+        $this->onValue = $onValue;
+        return $this;
+    }
+
+    /**
      * @return void
      * @throws Throwable
      */
     public function resolve(): void
     {
-        $result = $this->value();
         if (isset($this->onValue)) {
-            ($this->onValue)($result);
-        }
-    }
-
-    /**
-     * @param Throwable $reason
-     * @return void
-     */
-    public function reject(Throwable $reason): void
-    {
-        if (isset($this->onError)) {
-            ($this->onError)($reason);
+            ($this->onValue)($this->result = $this->value());
         }
     }
 
@@ -186,5 +183,23 @@ class Future
     {
         $this->onCancelled = $onCancelled;
         return $this;
+    }
+
+    /**
+     * @return Promise
+     */
+    public function getPromise(): Promise
+    {
+        return \P\promise(function (Closure $resolve, Closure $reject) {
+            $this->onError($resolve);
+            $this->onKilled($reject);
+            $this->onCancelled($reject);
+
+            if(isset($this->result)) {
+                $resolve($this->result);
+            } else {
+                $this->onValue($resolve);
+            }
+        });
     }
 }
