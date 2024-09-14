@@ -35,10 +35,13 @@
 namespace Psc\Core\Socket;
 
 use Co\IO;
+use Psc\Core\Coroutine\Promise;
 use Psc\Core\Stream\Exception\ConnectionException;
 use Psc\Core\Stream\Stream;
 use RuntimeException;
 use Socket;
+use Throwable;
+use Exception;
 
 use function explode;
 use function file_exists;
@@ -177,6 +180,7 @@ class SocketStream extends Stream
         return $realLength;
     }
 
+
     /**
      * @param string $string
      *
@@ -185,58 +189,90 @@ class SocketStream extends Stream
      */
     public function write(string $string): int
     {
-        if ($this->blocking) {
-            if ($this->storageCacheWrite === null) {
-                $tempFilePath            = sys_get_temp_dir() . '/' . uniqid('buf_');
-                $this->storageCacheWrite = IO::File()->open($tempFilePath, 'w+');
-                $this->storageCacheRead  = IO::File()->open($tempFilePath, 'r+');
+        try {
+            return $this->writeInternal($string)->await();
+        } catch (Throwable $e) {
+            throw new ConnectionException($e->getMessage(), 0, $e);
+        }
+    }
 
-                $this->storageCacheWrite->setBlocking(true);
+    /*** @var \Psc\Core\Coroutine\Promise */
+    private Promise $writePromise;
 
-                $closeEventId = $this->onClose(function () use ($tempFilePath) {
-                    $this->storageCacheWrite->close();
-                    $this->storageCacheRead->close();
-
-                    if (file_exists($tempFilePath)) {
-                        unlink($tempFilePath);
-                    }
-                });
-
-                $this->onWritable(function ($_, $cancel) use ($tempFilePath, $closeEventId) {
-                    if ($this->storageCacheRead->eof()) {
-                        $this->blocking = false;
-                        $this->storageCacheWrite->close();
-                        $this->storageCacheRead->close();
-
-                        if (file_exists($tempFilePath)) {
-                            unlink($tempFilePath);
-                        }
-
-                        $this->storageCacheWrite = null;
-                        $this->storageCacheRead  = null;
-                        $cancel();
-                        $this->cancelOnClose($closeEventId);
-                        return;
-                    }
-
-                    $string = $this->storageCacheRead->read($this->getOption(SOL_SOCKET, SO_SNDLOWAT));
-                    parent::write($string);
-                });
-            }
-
-            return $this->storageCacheWrite->write($string);
-        } else {
-            $length = parent::write($string);
-            $string = substr($string, $length);
-
-            if ($string !== '') {
-                $this->blocking = true;
-                $this->write($string);
-            }
+    /**
+     * @param string $string
+     *
+     * @return Promise<int>
+     * @throws \Psc\Core\Stream\Exception\ConnectionException
+     */
+    private function writeInternal(string $string): Promise
+    {
+        if ($this->storageCacheWrite) {
+            $this->storageCacheWrite->write($string);
+            return $this->writePromise;
         }
 
-        return $length;
+        return $this->writePromise = \Co\promise(function ($resolve, $reject) use ($string) {
+            try {
+                if ($this->blocking) {
+                    if ($this->storageCacheWrite === null) {
+                        $tempFilePath            = sys_get_temp_dir() . '/' . uniqid('buf_');
+                        $this->storageCacheWrite = IO::File()->open($tempFilePath, 'w+');
+                        $this->storageCacheRead  = IO::File()->open($tempFilePath, 'r+');
+
+                        $this->storageCacheWrite->setBlocking(true);
+
+                        $closeEventId = $this->onClose(function () use ($tempFilePath) {
+                            $this->storageCacheWrite->close();
+                            $this->storageCacheRead->close();
+                            if (file_exists($tempFilePath)) {
+                                unlink($tempFilePath);
+                            }
+                        });
+
+                        $this->onWritable(function ($_, $cancel) use ($tempFilePath, $closeEventId, $reject) {
+                            if ($this->storageCacheRead->eof()) {
+                                $this->blocking = false;
+                                $this->storageCacheWrite->close();
+                                $this->storageCacheRead->close();
+                                if (file_exists($tempFilePath)) {
+                                    unlink($tempFilePath);
+                                }
+                                $this->storageCacheWrite = null;
+                                $this->storageCacheRead  = null;
+                                $cancel();
+                                $this->cancelOnClose($closeEventId);
+                                return;
+                            }
+
+                            $buffer = $this->storageCacheRead->read($this->getOption(SOL_SOCKET, SO_SNDLOWAT));
+                            try {
+                                parent::write($buffer);
+                            } catch (ConnectionException $e) {
+                                $cancel();
+                                $reject($e);
+                            }
+                        });
+                    }
+
+                    $this->storageCacheWrite->write($string);
+                } else {
+                    $length          = parent::write($string);
+                    $remainingString = substr($string, $length);
+
+                    if ($remainingString !== '') {
+                        $this->blocking = true;
+                        $this->writeInternal($remainingString)->await();
+                    }
+
+                    $resolve($length);
+                }
+            } catch (Exception $e) {
+                $reject($e);
+            }
+        });
     }
+
 
     /**
      * @param int $level
