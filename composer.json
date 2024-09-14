@@ -1,6 +1,6 @@
 {
   "name": "cloudtay/p-ripple-core",
-  "version": "v0.5.3",
+  "version": "v0.5.4",
   "license": "MIT",
   "autoload": {
     "psr-4": {
