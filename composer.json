@@ -4,10 +4,7 @@
   "autoload": {
     "psr-4": {
       "Ripple\\": "src/"
-    },
-    "files": [
-      "src/Functions.php"
-    ]
+    }
   },
   "autoload-dev": {
     "psr-4": {
@@ -26,8 +23,7 @@
     "ext-pcntl": "*",
     "ext-sockets": "*",
     "ext-openssl": "*",
-    "cloudtay/ripple-kernel": "^1.0",
-    "cloudtay/ripple-database": "^1.0"
+    "cloudtay/ripple-kernel": "^2.0"
   },
   "require-dev": {
     "ext-curl": "*",
